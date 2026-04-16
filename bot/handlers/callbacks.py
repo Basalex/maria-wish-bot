@@ -2,6 +2,7 @@ from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+from bot.config import ADMIN_USERNAME
 from bot.database.models import (
     get_or_create_user, get_wish, get_date, get_note,
     delete_wish, delete_date, delete_note,
@@ -15,21 +16,27 @@ router = Router()
 class EditState(StatesGroup):
     waiting_for_value = State()
 
+def is_admin(user: types.User):
+    return user.username and user.username.lower() == ADMIN_USERNAME.lower()
+
 # --- LISTS ---
 @router.callback_query(F.data == "wish_list")
 async def wish_list_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return await callback.answer("Нет доступа", show_alert=True)
     user = await get_or_create_user(callback.from_user.id)
     items = await get_wishes_raw(user['id'])
     await callback.message.edit_text("<b>Список желаний Марии:</b>", reply_markup=get_items_keyboard(items, "wish"))
 
 @router.callback_query(F.data == "date_list")
 async def date_list_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return await callback.answer("Нет доступа", show_alert=True)
     user = await get_or_create_user(callback.from_user.id)
     items = await get_dates_raw(user['id'])
     await callback.message.edit_text("<b>Важные даты:</b>", reply_markup=get_items_keyboard(items, "date"))
 
 @router.callback_query(F.data == "note_list")
 async def note_list_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return await callback.answer("Нет доступа", show_alert=True)
     user = await get_or_create_user(callback.from_user.id)
     items = await get_notes_raw(user['id'])
     await callback.message.edit_text("<b>Заметки:</b>", reply_markup=get_items_keyboard(items, "note"))
@@ -37,6 +44,7 @@ async def note_list_cb(callback: types.CallbackQuery):
 # --- VIEW ITEM ---
 @router.callback_query(F.data.startswith("wish_view:"))
 async def wish_view_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return
     wish_id = int(callback.data.split(":")[1])
     user = await get_or_create_user(callback.from_user.id)
     w = await get_wish(user['id'], wish_id)
@@ -51,6 +59,7 @@ async def wish_view_cb(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("date_view:"))
 async def date_view_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return
     date_id = int(callback.data.split(":")[1])
     user = await get_or_create_user(callback.from_user.id)
     d = await get_date(user['id'], date_id)
@@ -61,6 +70,7 @@ async def date_view_cb(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("note_view:"))
 async def note_view_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return
     note_id = int(callback.data.split(":")[1])
     user = await get_or_create_user(callback.from_user.id)
     n = await get_note(user['id'], note_id)
@@ -72,6 +82,7 @@ async def note_view_cb(callback: types.CallbackQuery):
 # --- ACTIONS ---
 @router.callback_query(F.data.startswith("wish_done:"))
 async def wish_done_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return
     wish_id = int(callback.data.split(":")[1])
     user = await get_or_create_user(callback.from_user.id)
     await complete_wish(user['id'], wish_id)
@@ -80,6 +91,7 @@ async def wish_done_cb(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.contains("_delete:"))
 async def item_delete_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return
     prefix, item_id = callback.data.split("_delete:")
     item_id = int(item_id)
     user = await get_or_create_user(callback.from_user.id)
@@ -89,7 +101,6 @@ async def item_delete_cb(callback: types.CallbackQuery):
     elif prefix == "note": await delete_note(user['id'], item_id)
     
     await callback.answer("Удалено")
-    # Redirect back to list
     if prefix == "wish": await wish_list_cb(callback)
     elif prefix == "date": await date_list_cb(callback)
     elif prefix == "note": await note_list_cb(callback)
@@ -97,6 +108,7 @@ async def item_delete_cb(callback: types.CallbackQuery):
 # --- EDITING ---
 @router.callback_query(F.data.contains("_edit:"))
 async def item_edit_cb(callback: types.CallbackQuery):
+    if not is_admin(callback.from_user): return
     prefix, item_id = callback.data.split("_edit:")
     item_id = int(item_id)
     
@@ -109,7 +121,7 @@ async def item_edit_cb(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.contains("_editf:"))
 async def item_edit_field_cb(callback: types.CallbackQuery, state: FSMContext):
-    # data: wish_editf:ID:field
+    if not is_admin(callback.from_user): return
     parts = callback.data.split(":")
     prefix = parts[0].split("_")[0]
     item_id, field = int(parts[1]), parts[2]
@@ -122,6 +134,7 @@ async def item_edit_field_cb(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(EditState.waiting_for_value)
 async def process_edit_value(message: types.Message, state: FSMContext):
+    if not is_admin(message.from_user): return
     data = await state.get_data()
     prefix, item_id, field = data['prefix'], data['item_id'], data['field']
     user = await get_or_create_user(message.from_user.id)
@@ -134,8 +147,6 @@ async def process_edit_value(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer(f"✅ Обновлено!")
     
-    # Show item again
-    # We simulate callback to show item view
     if prefix == "wish":
         w = await get_wish(user['id'], item_id)
         await message.answer(f"🎁 <b>{w['title']}</b>\n\nОбновлено.", reply_markup=get_item_actions_keyboard(item_id, "wish", is_wish=True))

@@ -1,6 +1,7 @@
 from aiogram import Router, types
 from aiogram.filters import Command, CommandObject
 from bot.ai.gemini import process_message
+from bot.config import ADMIN_USERNAME
 from bot.database.models import (
     get_or_create_user, save_wish, update_wish, delete_wish, save_date, update_date, delete_date, 
     save_note, update_note, delete_note, save_gift, complete_wish,
@@ -10,8 +11,14 @@ from bot.keyboards.inline import get_items_keyboard
 
 router = Router()
 
+def is_admin(user: types.User):
+    return user.username and user.username.lower() == ADMIN_USERNAME.lower()
+
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
+    if not is_admin(message.from_user):
+        return await message.answer("Извините, этот бот только для личного пользования администратора.")
+    
     await get_or_create_user(message.from_user.id, message.from_user.username)
     await message.answer("Привет! Я твой помощник по подаркам для Марии.\n\n"
                          "Ты можешь управлять желаниями, датами и заметками через команды, меню или просто общаясь со мной.\n"
@@ -19,6 +26,7 @@ async def cmd_start(message: types.Message):
 
 @router.message(Command("help"))
 async def cmd_help(message: types.Message):
+    if not is_admin(message.from_user): return
     help_text = (
         "<b>Интерактивное управление:</b>\n"
         "/wishes — Список желаний\n"
@@ -38,18 +46,21 @@ async def cmd_help(message: types.Message):
 # --- COMMANDS FOR LISTS (Inline) ---
 @router.message(Command("wishes"))
 async def cmd_wishes(message: types.Message):
+    if not is_admin(message.from_user): return
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     items = await get_wishes_raw(user['id'])
     await message.answer("<b>Список желаний Марии:</b>", reply_markup=get_items_keyboard(items, "wish"))
 
 @router.message(Command("dates"))
 async def cmd_dates(message: types.Message):
+    if not is_admin(message.from_user): return
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     items = await get_dates_raw(user['id'])
     await message.answer("<b>Важные даты:</b>", reply_markup=get_items_keyboard(items, "date"))
 
 @router.message(Command("notes"))
 async def cmd_notes(message: types.Message):
+    if not is_admin(message.from_user): return
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     items = await get_notes_raw(user['id'])
     await message.answer("<b>Заметки:</b>", reply_markup=get_items_keyboard(items, "note"))
@@ -57,6 +68,7 @@ async def cmd_notes(message: types.Message):
 # --- QUICK ADD COMMANDS ---
 @router.message(Command("wishes_add"))
 async def cmd_wishes_add(message: types.Message, command: CommandObject):
+    if not is_admin(message.from_user): return
     if not command.args: return await message.answer("Использование: /wishes_add Название | Описание | Цена")
     parts = [p.strip() for p in command.args.split("|")]
     wish_data = {"title": parts[0], "description": parts[1] if len(parts) > 1 else None, "price_range": parts[2] if len(parts) > 2 else None}
@@ -66,6 +78,7 @@ async def cmd_wishes_add(message: types.Message, command: CommandObject):
 
 @router.message(Command("dates_add"))
 async def cmd_dates_add(message: types.Message, command: CommandObject):
+    if not is_admin(message.from_user): return
     if not command.args: return await message.answer("Использование: /dates_add Название | ГГГГ-ММ-ДД")
     parts = [p.strip() for p in command.args.split("|")]
     if len(parts) < 2: return await message.answer("Нужно название и дата.")
@@ -76,6 +89,7 @@ async def cmd_dates_add(message: types.Message, command: CommandObject):
 
 @router.message(Command("notes_add"))
 async def cmd_notes_add(message: types.Message, command: CommandObject):
+    if not is_admin(message.from_user): return
     if not command.args: return await message.answer("Использование: /notes_add Текст")
     note_data = {"content": command.args.strip()}
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
@@ -84,12 +98,16 @@ async def cmd_notes_add(message: types.Message, command: CommandObject):
 
 @router.message(Command("stats"))
 async def cmd_stats(message: types.Message):
+    if not is_admin(message.from_user): return
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     text = await get_gift_stats(user['id'])
     await message.answer(text)
 
 @router.message()
 async def handle_text(message: types.Message):
+    if not is_admin(message.from_user):
+        return await message.answer("Извините, у вас нет доступа к этому боту.")
+    
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     context = await get_user_context(user['id'])
     ai_response = await process_message(user['id'], message.text, context)
