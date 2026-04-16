@@ -2,7 +2,7 @@ from aiogram import Router, types
 from aiogram.filters import Command
 from bot.ai.gemini import process_message
 from bot.database.models import (
-    get_or_create_user, save_wish, save_date, save_note, save_gift,
+    get_or_create_user, save_wish, save_date, save_note, save_gift, complete_wish,
     get_user_context, get_wishes_formatted, get_notes_formatted, get_dates_formatted, get_gift_stats
 )
 
@@ -81,6 +81,10 @@ async def handle_text(message: types.Message):
             await save_note(user['id'], action.get('note', {}))
         elif at == "save_gift":
             await save_gift(user['id'], action.get('gift', {}))
+        elif at == "complete_wish":
+            cw_id = action.get('complete_wish_id')
+            if cw_id:
+                await complete_wish(user['id'], cw_id)
         elif at == "show_stats":
             stats = await get_gift_stats(user['id'])
             reply_text += f"\n\n{stats}"

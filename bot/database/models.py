@@ -47,6 +47,11 @@ async def save_note(user_id: int, note_data: dict):
             user_id, note_data.get('content'), note_data.get('category', 'other')
         )
 
+async def complete_wish(user_id: int, wish_id: int):
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        await conn.execute("UPDATE wishes SET is_granted = TRUE WHERE id = $1 AND user_id = $2", wish_id, user_id)
+
 async def save_gift(user_id: int, gift_data: dict):
     if not gift_data or not gift_data.get('title'): return
     pool = await get_db()

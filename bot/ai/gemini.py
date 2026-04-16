@@ -38,21 +38,22 @@ Respond ONLY with valid JSON using this exact schema:
   "reply": "string — message to send the user",
   "actions": [
     {{
-      "type": "save_wish" | "save_date" | "save_note" | "save_gift" | "suggest_gift" | "list_wishes" | "list_notes" | "list_dates" | "show_stats",
+      "type": "save_wish" | "save_date" | "save_note" | "save_gift" | "complete_wish" | "suggest_gift" | "list_wishes" | "list_notes" | "list_dates" | "show_stats",
       "wish": {{ "title": "string", "description": "string", "price_range": "string", "link": "string" }},
       "date": {{ "title": "string", "event_date": "YYYY-MM-DD", "reminder_days": integer }},
       "note": {{ "content": "string", "category": "preference" | "place" | "event" | "other" }},
       "gift": {{ "title": "string", "is_without_reason": boolean, "wish_id": integer | null }},
+      "complete_wish_id": integer | null,
       "budget_request": "string"
     }}
   ]
 }}
 
 Action rules:
-• "save_gift" — user says he gave a gift. 
-• "show_stats" — user asks about gift statistics or last gift without reason.
-• "list_dates" — user wants to see important dates.
-• "save_wish", "save_date", "save_note" - as described before.
+• "complete_wish" — user says a wish is already done/bought/granted (e.g. "I already bought the dress"). Fill complete_wish_id.
+• "save_gift" — user says he gave a gift. If matches a wish, fill gift.wish_id.
+• "show_stats" — user asks about stats or last gift without reason.
+• Other rules apply.
 
 Always be supportive and helpful."""
 
