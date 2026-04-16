@@ -1,5 +1,5 @@
 from aiogram import Router, types
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from bot.ai.gemini import process_message
 from bot.database.models import (
     get_or_create_user, save_wish, update_wish, delete_wish, save_date, save_note, save_gift, complete_wish,
@@ -11,31 +11,24 @@ router = Router()
 @router.message(Command("start"))
 async def cmd_start(message: types.Message):
     await get_or_create_user(message.from_user.id, message.from_user.username)
-    await message.answer("Привет! Я твой помощник по подаркам для Марии. "
-                         "Я помогу тебе помнить её желания, важные даты и планировать сюрпризы.\n\n"
-                         "Используй /help чтобы узнать, что я умею.")
+    await message.answer("Привет! Я твой помощник по подаркам для Марии.\n\n"
+                         "Ты можешь управлять желаниями как командами, так и просто общаясь со мной.\n"
+                         "Используй /help чтобы узнать подробнее.")
 
 @router.message(Command("help"))
 async def cmd_help(message: types.Message):
     help_text = (
-        "<b>Как я могу помочь:</b>\n\n"
-        "🎁 <b>Желания:</b> Напиши что она хочет.\n"
-        "<i>'Мария хочет новые кроссовки'</i>\n\n"
-        "📅 <b>Даты:</b> Напиши когда праздник.\n"
-        "<i>'Наш юбилей 12 октября'</i>\n\n"
-        "📝 <b>Заметки:</b> Расскажи о её вкусах.\n"
-        "<i>'Она любит пионы'</i>\n\n"
-        "✅ <b>Подарки:</b> Отметь когда что-то подарил.\n"
-        "<i>'Подарил ей букет сегодня'</i>\n\n"
-        "💡 <b>Советы:</b> Спроси меня что подарить.\n"
-        "<i>'Что подарить на др?'</i>\n\n"
-        "🛠 <b>CRUD:</b> Ты можешь изменять или удалять желания.\n"
-        "<i>'Удали желание с ID 5' или 'Измени цену для платья на 5000'</i>\n\n"
-        "<b>Меню команд:</b>\n"
-        "/wishes — Список желаний\n"
+        "<b>Команды управления желаниями:</b>\n"
+        "/wishes — Показать список\n"
+        "/wishes_add Название | Описание | Цена — Добавить\n"
+        "/wishes_edit ID Поле Значение — Изменить (поле: title, desc, price, link)\n"
+        "/wishes_delete ID — Удалить\n"
+        "/wishes_done ID — Отметить выполненным\n\n"
+        "<b>Другие команды:</b>\n"
         "/notes — Заметки\n"
-        "/dates — Важные даты\n"
-        "/stats — Статистика подарков"
+        "/dates — Даты\n"
+        "/stats — Статистика подарков\n\n"
+        "<i>Ты также можешь просто писать мне сообщения, и я сам пойму, что нужно сделать!</i>"
     )
     await message.answer(help_text)
 
@@ -44,6 +37,61 @@ async def cmd_wishes(message: types.Message):
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     text = await get_wishes_formatted(user['id'])
     await message.answer(f"<b>Желания Марии:</b>\n\n{text}")
+
+@router.message(Command("wishes_add"))
+async def cmd_wishes_add(message: types.Message, command: CommandObject):
+    if not command.args:
+        return await message.answer("Использование: /wishes_add Название | Описание | Цена")
+    
+    parts = [p.strip() for p in command.args.split("|")]
+    wish_data = {
+        "title": parts[0],
+        "description": parts[1] if len(parts) > 1 else None,
+        "price_range": parts[2] if len(parts) > 2 else None
+    }
+    
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
+    await save_wish(user['id'], wish_data)
+    await message.answer(f"✅ Добавлено желание: {wish_data['title']}")
+
+@router.message(Command("wishes_edit"))
+async def cmd_wishes_edit(message: types.Message, command: CommandObject):
+    if not command.args:
+        return await message.answer("Использование: /wishes_edit ID Поле Значение (поле: title, desc, price, link)")
+    
+    parts = command.args.split(maxsplit=2)
+    if len(parts) < 3:
+        return await message.answer("Недостаточно аргументов.")
+    
+    wish_id, field, value = int(parts[0]), parts[1], parts[2]
+    field_map = {"title": "title", "desc": "description", "price": "price_range", "link": "link"}
+    
+    if field not in field_map:
+        return await message.answer(f"Неверное поле. Доступны: {', '.join(field_map.keys())}")
+    
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
+    await update_wish(user['id'], wish_id, {field_map[field]: value})
+    await message.answer(f"✅ Обновлено поле {field} для желания #{wish_id}")
+
+@router.message(Command("wishes_delete"))
+async def cmd_wishes_delete(message: types.Message, command: CommandObject):
+    if not command.args:
+        return await message.answer("Использование: /wishes_delete ID")
+    
+    wish_id = int(command.args.strip())
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
+    await delete_wish(user['id'], wish_id)
+    await message.answer(f"🗑 Удалено желание #{wish_id}")
+
+@router.message(Command("wishes_done"))
+async def cmd_wishes_done(message: types.Message, command: CommandObject):
+    if not command.args:
+        return await message.answer("Использование: /wishes_done ID")
+    
+    wish_id = int(command.args.strip())
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
+    await complete_wish(user['id'], wish_id)
+    await message.answer(f"🎉 Желание #{wish_id} отмечено как выполненное!")
 
 @router.message(Command("notes"))
 async def cmd_notes(message: types.Message):

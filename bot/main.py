@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 async def set_commands(bot: Bot):
     commands = [
         BotCommand(command="wishes", description="Список желаний"),
+        BotCommand(command="wishes_add", description="Добавить: Название | Описание | Цена"),
+        BotCommand(command="wishes_edit", description="Изменить: ID Поле Значение"),
+        BotCommand(command="wishes_delete", description="Удалить: ID"),
+        BotCommand(command="wishes_done", description="Выполнено: ID"),
         BotCommand(command="notes", description="Заметки о вкусах"),
         BotCommand(command="dates", description="Важные даты"),
         BotCommand(command="stats", description="Статистика подарков"),
