@@ -19,15 +19,14 @@ logger = logging.getLogger(__name__)
 
 async def set_commands(bot: Bot):
     commands = [
-        BotCommand(command="wishes", description="Список желаний"),
-        BotCommand(command="wishes_add", description="Добавить: Название | Описание | Цена"),
-        BotCommand(command="wishes_edit", description="Изменить: ID Поле Значение"),
-        BotCommand(command="wishes_delete", description="Удалить: ID"),
-        BotCommand(command="wishes_done", description="Выполнено: ID"),
-        BotCommand(command="notes", description="Заметки о вкусах"),
-        BotCommand(command="dates", description="Важные даты"),
+        BotCommand(command="wishes", description="Желания: Список"),
+        BotCommand(command="wishes_add", description="Желания: Добавить"),
+        BotCommand(command="dates", description="Даты: Список"),
+        BotCommand(command="dates_add", description="Даты: Добавить"),
+        BotCommand(command="notes", description="Заметки: Список"),
+        BotCommand(command="notes_add", description="Заметки: Добавить"),
         BotCommand(command="stats", description="Статистика подарков"),
-        BotCommand(command="help", description="Как пользоваться"),
+        BotCommand(command="help", description="Все команды (CRUD)"),
     ]
     await bot.set_my_commands(commands)
 
