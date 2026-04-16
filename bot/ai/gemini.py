@@ -35,39 +35,25 @@ Respond ONLY with valid JSON using this exact schema:
   "reply": "string — message to send the user",
   "actions": [
     {{
-      "type": "save_wish" | "save_date" | "save_note" | "suggest_gift" | "list_wishes" | "list_notes" | "list_all",
-      "wish": {{
-        "title": "string",
-        "description": "string",
-        "price_range": "string",
-        "link": "string"
-      }},
-      "date": {{
-        "title": "string",
-        "event_date": "YYYY-MM-DD",
-        "reminder_days": integer
-      }},
-      "note": {{
-        "content": "string",
-        "category": "preference" | "place" | "event" | "other"
-      }},
+      "type": "save_wish" | "save_date" | "save_note" | "save_gift" | "suggest_gift" | "list_wishes" | "list_notes" | "list_dates" | "show_stats",
+      "wish": {{ "title": "string", "description": "string", "price_range": "string", "link": "string" }},
+      "date": {{ "title": "string", "event_date": "YYYY-MM-DD", "reminder_days": integer }},
+      "note": {{ "content": "string", "category": "preference" | "place" | "event" | "other" }},
+      "gift": {{ "title": "string", "is_without_reason": boolean, "wish_id": integer | null }},
       "budget_request": "string"
     }}
   ]
 }}
 
 Action rules:
-• "save_wish" — user mentions something Maria wants. If user sends a list, create multiple "save_wish" actions in the "actions" array.
-• "save_date" — user mentions an important date.
-• "save_note" — user mentions a preference or useful info.
-• "suggest_gift" — user asks for ideas based on history or budget.
-• "list_wishes" — user wants to see the list of wishes.
-• "list_notes" — user wants to see the list of notes.
-• "list_all" — user wants to see everything.
+• "save_gift" — user says he gave a gift (e.g. "I gave her flowers today"). 
+    If it's a surprise or no special occasion mentioned, set is_without_reason=true.
+    If it matches a wish ID from SAVED WISHES, fill wish_id.
+• "show_stats" — user asks about gift statistics or when he last gave something without reason.
+• "list_dates" — user wants to see important dates.
+• Other rules from before apply.
 
-If the user just asks to "show wishes" or "what does she want?", use "list_wishes".
-If the user sends a list like "1. Dress 2. Shoes 3. Flowers", create THREE "save_wish" actions.
-
+If the user asks "when did I last give a gift without reason?", use "show_stats".
 Always be supportive and helpful."""
 
 def _build_wishes_text(wishes: list) -> str:

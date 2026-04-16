@@ -47,6 +47,42 @@ async def save_note(user_id: int, note_data: dict):
             user_id, note_data.get('content'), note_data.get('category', 'other')
         )
 
+async def save_gift(user_id: int, gift_data: dict):
+    if not gift_data or not gift_data.get('title'): return
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        # Mark wish as granted if wish_id is provided
+        wish_id = gift_data.get('wish_id')
+        if wish_id:
+            await conn.execute("UPDATE wishes SET is_granted = TRUE WHERE id = $1 AND user_id = $2", wish_id, user_id)
+        
+        await conn.execute(
+            "INSERT INTO gifts (user_id, title, is_without_reason, wish_id, given_at) VALUES ($1, $2, $3, $4, CURRENT_DATE)",
+            user_id, gift_data.get('title'), gift_data.get('is_without_reason', False), wish_id
+        )
+
+async def get_gift_stats(user_id: int) -> str:
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        last_without_reason = await conn.fetchrow(
+            "SELECT * FROM gifts WHERE user_id = $1 AND is_without_reason = TRUE ORDER BY given_at DESC LIMIT 1",
+            user_id
+        )
+        total_gifts = await conn.fetchval("SELECT COUNT(*) FROM gifts WHERE user_id = $1", user_id)
+        
+        stats = f"📊 <b>Статистика подарков:</b>\n"
+        stats += f"Всего подарено: {total_gifts}\n\n"
+        
+        if last_without_reason:
+            days_ago = (datetime.now().date() - last_without_reason['given_at']).days
+            stats += f"🎁 <b>Последний подарок без повода:</b>\n"
+            stats += f"\"{last_without_reason['title']}\"\n"
+            stats += f"Дата: {last_without_reason['given_at'].strftime('%d.%m.%Y')} ({days_ago} дней назад)"
+        else:
+            stats += "🎁 Подарков без повода еще не было. Пора порадовать Марию!"
+        
+        return stats
+
 async def get_user_context(user_id: int) -> dict:
     pool = await get_db()
     async with pool.acquire() as conn:
@@ -73,3 +109,10 @@ async def get_notes_formatted(user_id: int) -> str:
         rows = await conn.fetch("SELECT * FROM notes WHERE user_id = $1 ORDER BY created_at DESC", user_id)
         if not rows: return "Заметок пока нет."
         return "\n".join([f"• {r['content']} [#{r['category'] or 'другое'}]" for r in rows])
+
+async def get_dates_formatted(user_id: int) -> str:
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("SELECT * FROM dates WHERE user_id = $1 ORDER BY event_date ASC", user_id)
+        if not rows: return "Важных дат пока нет."
+        return "\n".join([f"• {r['title']}: {r['event_date'].strftime('%d.%m.%Y')}" for r in rows])

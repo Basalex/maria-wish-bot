@@ -64,6 +64,17 @@ async def init_db():
             )
         """)
 
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS gifts (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                title TEXT NOT NULL,
+                given_at DATE DEFAULT CURRENT_DATE,
+                is_without_reason BOOLEAN DEFAULT FALSE,
+                wish_id INTEGER REFERENCES wishes(id) ON DELETE SET NULL
+            )
+        """)
+
 async def close_db():
     global _pool
     if _pool:
