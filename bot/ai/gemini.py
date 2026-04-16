@@ -81,7 +81,7 @@ async def process_message(user_id: int, message_text: str, context: dict) -> dic
     )
     
     try:
-        model_name = 'gemini-1.5-flash'
+        model_name = 'gemini-1.5-flash-latest'
         logger.info(f"Sending request to Gemini model: {model_name}")
         response = client.models.generate_content(
             model=model_name,
