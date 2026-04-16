@@ -1,0 +1,1 @@
+# Maria Wish Bot package

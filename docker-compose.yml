@@ -1,0 +1,29 @@
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://maria:maria@postgres:5432/maria_wish_bot
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: maria
+      POSTGRES_PASSWORD: maria
+      POSTGRES_DB: maria_wish_bot
+    volumes:
+      - maria_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maria -d maria_wish_bot"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  maria_pgdata:
