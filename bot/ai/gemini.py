@@ -78,17 +78,21 @@ async def process_message(user_id: int, message_text: str, context: dict) -> dic
         notes_text=_build_notes_text(context.get('notes', []))
     )
     
-    response = client.models.generate_content(
-        model='gemini-2.0-flash',
-        contents=message_text,
-        config={
-            'system_instruction': prompt,
-            'response_mime_type': 'application/json'
-        }
-    )
-    
     try:
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=message_text,
+            config={
+                'system_instruction': prompt,
+                'response_mime_type': 'application/json'
+            }
+        )
         return json.loads(response.text)
     except Exception as e:
-        logger.error(f"Failed to parse AI response: {response.text}")
-        return {"reply": "Sorry, I had trouble processing that.", "actions": []}
+        logger.error(f"Gemini API error: {e}")
+        if "429" in str(e):
+            return {
+                "reply": "⚠️ Превышен лимит запросов к ИИ. Пожалуйста, подождите немного или попробуйте позже.",
+                "actions": []
+            }
+        return {"reply": "Извини, у меня возникла техническая сложность с ответом.", "actions": []}
