@@ -93,7 +93,7 @@ async def process_message(user_id: int, message_text: str, context: dict) -> dic
     )
     
     response = client.models.generate_content(
-        model='gemini-2.0-flash-exp',
+        model='gemini-2.0-flash',
         contents=message_text,
         config={
             'system_instruction': prompt,
