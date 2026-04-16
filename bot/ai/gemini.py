@@ -13,7 +13,9 @@ def _get_client() -> genai.Client:
     if _client is None:
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
+            logger.error("CRITICAL: GEMINI_API_KEY is NOT found in environment variables!")
             raise RuntimeError("GEMINI_API_KEY environment variable is not set")
+        logger.info(f"Initializing Gemini Client with API Key starting with: {api_key[:4]}...")
         _client = genai.Client(api_key=api_key)
     return _client
 
@@ -79,8 +81,10 @@ async def process_message(user_id: int, message_text: str, context: dict) -> dic
     )
     
     try:
+        model_name = 'gemini-1.5-flash'
+        logger.info(f"Sending request to Gemini model: {model_name}")
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model=model_name,
             contents=message_text,
             config={
                 'system_instruction': prompt,
@@ -89,7 +93,7 @@ async def process_message(user_id: int, message_text: str, context: dict) -> dic
         )
         return json.loads(response.text)
     except Exception as e:
-        logger.error(f"Gemini API error: {e}")
+        logger.error(f"Gemini API error (model {model_name}): {e}")
         if "429" in str(e):
             return {
                 "reply": "⚠️ Превышен лимит запросов к ИИ. Пожалуйста, подождите немного или попробуйте позже.",
