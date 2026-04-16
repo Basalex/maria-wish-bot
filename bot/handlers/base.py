@@ -2,7 +2,7 @@ from aiogram import Router, types
 from aiogram.filters import Command
 from bot.ai.gemini import process_message
 from bot.database.models import (
-    get_or_create_user, save_wish, save_date, save_note, save_gift, complete_wish,
+    get_or_create_user, save_wish, update_wish, delete_wish, save_date, save_note, save_gift, complete_wish,
     get_user_context, get_wishes_formatted, get_notes_formatted, get_dates_formatted, get_gift_stats
 )
 
@@ -29,6 +29,8 @@ async def cmd_help(message: types.Message):
         "<i>'Подарил ей букет сегодня'</i>\n\n"
         "💡 <b>Советы:</b> Спроси меня что подарить.\n"
         "<i>'Что подарить на др?'</i>\n\n"
+        "🛠 <b>CRUD:</b> Ты можешь изменять или удалять желания.\n"
+        "<i>'Удали желание с ID 5' или 'Измени цену для платья на 5000'</i>\n\n"
         "<b>Меню команд:</b>\n"
         "/wishes — Список желаний\n"
         "/notes — Заметки\n"
@@ -75,6 +77,14 @@ async def handle_text(message: types.Message):
         at = action.get("type")
         if at == "save_wish":
             await save_wish(user['id'], action.get('wish', {}))
+        elif at == "update_wish":
+            w_id = action.get('wish_id')
+            if w_id:
+                await update_wish(user['id'], w_id, action.get('wish', {}))
+        elif at == "delete_wish":
+            w_id = action.get('wish_id')
+            if w_id:
+                await delete_wish(user['id'], w_id)
         elif at == "save_date":
             await save_date(user['id'], action.get('date', {}))
         elif at == "save_note":

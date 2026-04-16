@@ -38,8 +38,9 @@ Respond ONLY with valid JSON using this exact schema:
   "reply": "string — message to send the user",
   "actions": [
     {{
-      "type": "save_wish" | "save_date" | "save_note" | "save_gift" | "complete_wish" | "suggest_gift" | "list_wishes" | "list_notes" | "list_dates" | "show_stats",
+      "type": "save_wish" | "update_wish" | "delete_wish" | "save_date" | "save_note" | "save_gift" | "complete_wish" | "suggest_gift" | "list_wishes" | "list_notes" | "list_dates" | "show_stats",
       "wish": {{ "title": "string", "description": "string", "price_range": "string", "link": "string" }},
+      "wish_id": integer | null,
       "date": {{ "title": "string", "event_date": "YYYY-MM-DD", "reminder_days": integer }},
       "note": {{ "content": "string", "category": "preference" | "place" | "event" | "other" }},
       "gift": {{ "title": "string", "is_without_reason": boolean, "wish_id": integer | null }},
@@ -50,10 +51,11 @@ Respond ONLY with valid JSON using this exact schema:
 }}
 
 Action rules:
-• "complete_wish" — user says a wish is already done/bought/granted (e.g. "I already bought the dress"). Fill complete_wish_id.
-• "save_gift" — user says he gave a gift. If matches a wish, fill gift.wish_id.
-• "show_stats" — user asks about stats or last gift without reason.
-• Other rules apply.
+• "update_wish" — user wants to change details of an existing wish. Use ID from SAVED WISHES. Fill wish_id and new wish details.
+• "delete_wish" — user wants to remove a wish completely. Fill wish_id.
+• "complete_wish" — mark wish as granted (is_granted=true). Fill complete_wish_id.
+• "save_wish" — save a new wish.
+• "save_gift" — user gave a gift.
 
 Always be supportive and helpful."""
 

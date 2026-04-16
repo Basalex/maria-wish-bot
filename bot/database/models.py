@@ -24,6 +24,35 @@ async def save_wish(user_id: int, wish_data: dict):
             wish_data.get('price_range'), wish_data.get('link')
         )
 
+async def update_wish(user_id: int, wish_id: int, wish_data: dict):
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        # Update only provided fields
+        fields = []
+        params = [wish_id, user_id]
+        if 'title' in wish_data and wish_data['title']:
+            fields.append(f"title = ${len(params)+1}")
+            params.append(wish_data['title'])
+        if 'description' in wish_data:
+            fields.append(f"description = ${len(params)+1}")
+            params.append(wish_data['description'])
+        if 'price_range' in wish_data:
+            fields.append(f"price_range = ${len(params)+1}")
+            params.append(wish_data['price_range'])
+        if 'link' in wish_data:
+            fields.append(f"link = ${len(params)+1}")
+            params.append(wish_data['link'])
+            
+        if not fields: return
+        
+        query = f"UPDATE wishes SET {', '.join(fields)} WHERE id = $1 AND user_id = $2"
+        await conn.execute(query, *params)
+
+async def delete_wish(user_id: int, wish_id: int):
+    pool = await get_db()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM wishes WHERE id = $1 AND user_id = $2", wish_id, user_id)
+
 async def save_date(user_id: int, date_data: dict):
     if not date_data or not date_data.get('event_date'): return
     pool = await get_db()
@@ -56,7 +85,6 @@ async def save_gift(user_id: int, gift_data: dict):
     if not gift_data or not gift_data.get('title'): return
     pool = await get_db()
     async with pool.acquire() as conn:
-        # Mark wish as granted if wish_id is provided
         wish_id = gift_data.get('wish_id')
         if wish_id:
             await conn.execute("UPDATE wishes SET is_granted = TRUE WHERE id = $1 AND user_id = $2", wish_id, user_id)
@@ -106,7 +134,7 @@ async def get_wishes_formatted(user_id: int) -> str:
     async with pool.acquire() as conn:
         rows = await conn.fetch("SELECT * FROM wishes WHERE user_id = $1 AND is_granted = FALSE ORDER BY created_at DESC", user_id)
         if not rows: return "Список пока пуст."
-        return "\n".join([f"• {r['title']} ({r['price_range'] or 'цена не указана'})" for r in rows])
+        return "\n".join([f"• [ID: {r['id']}] {r['title']} ({r['price_range'] or 'цена не указана'})" for r in rows])
 
 async def get_notes_formatted(user_id: int) -> str:
     pool = await get_db()
