@@ -99,4 +99,4 @@ async def process_message(user_id: int, message_text: str, context: dict) -> dic
                 "reply": "⚠️ Превышен лимит запросов к ИИ. Пожалуйста, подождите немного или попробуйте позже.",
                 "actions": []
             }
-        return {"reply": "Извини, у меня возникла техническая сложность с ответом.", "actions": []}
+        return {"reply": f"❌ Ошибка API ({model_name}): {str(e)}", "actions": []}
