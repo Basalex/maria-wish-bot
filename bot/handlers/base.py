@@ -4,8 +4,9 @@ from bot.ai.gemini import process_message
 from bot.database.models import (
     get_or_create_user, save_wish, update_wish, delete_wish, save_date, update_date, delete_date, 
     save_note, update_note, delete_note, save_gift, complete_wish,
-    get_user_context, get_wishes_formatted, get_notes_formatted, get_dates_formatted, get_gift_stats
+    get_user_context, get_wishes_raw, get_notes_raw, get_dates_raw, get_gift_stats
 )
+from bot.keyboards.inline import get_items_keyboard
 
 router = Router()
 
@@ -13,40 +14,47 @@ router = Router()
 async def cmd_start(message: types.Message):
     await get_or_create_user(message.from_user.id, message.from_user.username)
     await message.answer("Привет! Я твой помощник по подаркам для Марии.\n\n"
-                         "Ты можешь управлять желаниями, датами и заметками через команды или просто общаясь со мной.\n"
+                         "Ты можешь управлять желаниями, датами и заметками через команды, меню или просто общаясь со мной.\n"
                          "Используй /help чтобы увидеть все возможности.")
 
 @router.message(Command("help"))
 async def cmd_help(message: types.Message):
     help_text = (
-        "<b>🎁 Желания:</b>\n"
-        "/wishes — Список\n"
+        "<b>Интерактивное управление:</b>\n"
+        "/wishes — Список желаний\n"
+        "/dates — Важные даты\n"
+        "/notes — Заметки\n"
+        "<i>В списках можно нажать на элемент, чтобы изменить или удалить его.</i>\n\n"
+        "<b>Быстрое добавление (команды):</b>\n"
         "/wishes_add Название | Описание | Цена\n"
-        "/wishes_edit ID Поле Значение (поле: title, desc, price, link)\n"
-        "/wishes_delete ID\n"
-        "/wishes_done ID\n\n"
-        "<b>📅 Даты:</b>\n"
-        "/dates — Список\n"
-        "/dates_add Название | ГГГГ-ММ-ДД | [дни_напоминания]\n"
-        "/dates_edit ID Поle Значение (поле: title, date, rem)\n"
-        "/dates_delete ID\n\n"
-        "<b>📝 Заметки:</b>\n"
-        "/notes — Список\n"
-        "/notes_add Содержание | [категория]\n"
-        "/notes_edit ID Поле Значение (поле: text, cat)\n"
-        "/notes_delete ID\n\n"
-        "<b>📊 Прочее:</b>\n"
-        "/stats — Статистика подарков"
+        "/dates_add Название | ГГГГ-ММ-ДД\n"
+        "/notes_add Текст\n\n"
+        "<b>Другое:</b>\n"
+        "/stats — Статистика подарков\n\n"
+        "<i>Ты также можешь просто писать мне сообщения, и я сам пойму, что нужно сделать!</i>"
     )
     await message.answer(help_text)
 
-# --- WISHES ---
+# --- COMMANDS FOR LISTS (Inline) ---
 @router.message(Command("wishes"))
 async def cmd_wishes(message: types.Message):
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    text = await get_wishes_formatted(user['id'])
-    await message.answer(f"<b>Желания Марии:</b>\n\n{text}")
+    items = await get_wishes_raw(user['id'])
+    await message.answer("<b>Список желаний Марии:</b>", reply_markup=get_items_keyboard(items, "wish"))
 
+@router.message(Command("dates"))
+async def cmd_dates(message: types.Message):
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
+    items = await get_dates_raw(user['id'])
+    await message.answer("<b>Важные даты:</b>", reply_markup=get_items_keyboard(items, "date"))
+
+@router.message(Command("notes"))
+async def cmd_notes(message: types.Message):
+    user = await get_or_create_user(message.from_user.id, message.from_user.username)
+    items = await get_notes_raw(user['id'])
+    await message.answer("<b>Заметки:</b>", reply_markup=get_items_keyboard(items, "note"))
+
+# --- QUICK ADD COMMANDS ---
 @router.message(Command("wishes_add"))
 async def cmd_wishes_add(message: types.Message, command: CommandObject):
     if not command.args: return await message.answer("Использование: /wishes_add Название | Описание | Цена")
@@ -54,108 +62,25 @@ async def cmd_wishes_add(message: types.Message, command: CommandObject):
     wish_data = {"title": parts[0], "description": parts[1] if len(parts) > 1 else None, "price_range": parts[2] if len(parts) > 2 else None}
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     await save_wish(user['id'], wish_data)
-    await message.answer(f"✅ Добавлено желание: {wish_data['title']}")
-
-@router.message(Command("wishes_edit"))
-async def cmd_wishes_edit(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /wishes_edit ID Поле Значение")
-    parts = command.args.split(maxsplit=2)
-    if len(parts) < 3: return await message.answer("Недостаточно аргументов.")
-    wish_id, field, value = int(parts[0]), parts[1], parts[2]
-    field_map = {"title": "title", "desc": "description", "price": "price_range", "link": "link"}
-    if field not in field_map: return await message.answer(f"Доступны поля: {', '.join(field_map.keys())}")
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    await update_wish(user['id'], wish_id, {field_map[field]: value})
-    await message.answer(f"✅ Обновлено #{wish_id}")
-
-@router.message(Command("wishes_delete"))
-async def cmd_wishes_delete(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /wishes_delete ID")
-    wish_id = int(command.args.strip())
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    await delete_wish(user['id'], wish_id)
-    await message.answer(f"🗑 Удалено #{wish_id}")
-
-@router.message(Command("wishes_done"))
-async def cmd_wishes_done(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /wishes_done ID")
-    wish_id = int(command.args.strip())
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    await complete_wish(user['id'], wish_id)
-    await message.answer(f"🎉 Выполнено #{wish_id}!")
-
-# --- DATES ---
-@router.message(Command("dates"))
-async def cmd_dates(message: types.Message):
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    text = await get_dates_formatted(user['id'])
-    await message.answer(f"<b>Важные даты:</b>\n\n{text}")
+    await message.answer(f"✅ Добавлено: {wish_data['title']}")
 
 @router.message(Command("dates_add"))
 async def cmd_dates_add(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /dates_add Название | ГГГГ-ММ-ДД | [дни]")
+    if not command.args: return await message.answer("Использование: /dates_add Название | ГГГГ-ММ-ДД")
     parts = [p.strip() for p in command.args.split("|")]
     if len(parts) < 2: return await message.answer("Нужно название и дата.")
-    date_data = {"title": parts[0], "event_date": parts[1], "reminder_days": int(parts[2]) if len(parts) > 2 else 7}
+    date_data = {"title": parts[0], "event_date": parts[1]}
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     await save_date(user['id'], date_data)
     await message.answer(f"✅ Добавлена дата: {date_data['title']}")
 
-@router.message(Command("dates_edit"))
-async def cmd_dates_edit(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /dates_edit ID Поле Значение")
-    parts = command.args.split(maxsplit=2)
-    if len(parts) < 3: return await message.answer("Недостаточно аргументов.")
-    date_id, field, value = int(parts[0]), parts[1], parts[2]
-    field_map = {"title": "title", "date": "event_date", "rem": "reminder_days"}
-    if field not in field_map: return await message.answer(f"Доступны поля: {', '.join(field_map.keys())}")
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    await update_date(user['id'], date_id, {field_map[field]: value})
-    await message.answer(f"✅ Дата #{date_id} обновлена")
-
-@router.message(Command("dates_delete"))
-async def cmd_dates_delete(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /dates_delete ID")
-    date_id = int(command.args.strip())
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    await delete_date(user['id'], date_id)
-    await message.answer(f"🗑 Удалена дата #{date_id}")
-
-# --- NOTES ---
-@router.message(Command("notes"))
-async def cmd_notes(message: types.Message):
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    text = await get_notes_formatted(user['id'])
-    await message.answer(f"<b>Заметки:</b>\n\n{text}")
-
 @router.message(Command("notes_add"))
 async def cmd_notes_add(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /notes_add Текст | [категория]")
-    parts = [p.strip() for p in command.args.split("|")]
-    note_data = {"content": parts[0], "category": parts[1] if len(parts) > 1 else "other"}
+    if not command.args: return await message.answer("Использование: /notes_add Текст")
+    note_data = {"content": command.args.strip()}
     user = await get_or_create_user(message.from_user.id, message.from_user.username)
     await save_note(user['id'], note_data)
     await message.answer("✅ Заметка сохранена")
-
-@router.message(Command("notes_edit"))
-async def cmd_notes_edit(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /notes_edit ID Поле Значение")
-    parts = command.args.split(maxsplit=2)
-    if len(parts) < 3: return await message.answer("Недостаточно аргументов.")
-    note_id, field, value = int(parts[0]), parts[1], parts[2]
-    field_map = {"text": "content", "cat": "category"}
-    if field not in field_map: return await message.answer(f"Доступны поля: {', '.join(field_map.keys())}")
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    await update_note(user['id'], note_id, {field_map[field]: value})
-    await message.answer(f"✅ Заметка #{note_id} обновлена")
-
-@router.message(Command("notes_delete"))
-async def cmd_notes_delete(message: types.Message, command: CommandObject):
-    if not command.args: return await message.answer("Использование: /notes_delete ID")
-    note_id = int(command.args.strip())
-    user = await get_or_create_user(message.from_user.id, message.from_user.username)
-    await delete_note(user['id'], note_id)
-    await message.answer(f"🗑 Удалена заметка #{note_id}")
 
 @router.message(Command("stats"))
 async def cmd_stats(message: types.Message):
@@ -189,12 +114,15 @@ async def handle_text(message: types.Message):
             stats = await get_gift_stats(user['id'])
             reply_text += f"\n\n{stats}"
         elif at == "list_wishes":
-            w = await get_wishes_formatted(user['id'])
-            reply_text += f"\n\n<b>Список желаний:</b>\n{w}"
+            wishes = await get_wishes_raw(user['id'])
+            await message.answer("<b>Список желаний Марии:</b>", reply_markup=get_items_keyboard(wishes, "wish"))
+            return
         elif at == "list_notes":
-            n = await get_notes_formatted(user['id'])
-            reply_text += f"\n\n<b>Заметки:</b>\n{n}"
+            notes = await get_notes_raw(user['id'])
+            await message.answer("<b>Заметки:</b>", reply_markup=get_items_keyboard(notes, "note"))
+            return
         elif at == "list_dates":
-            d = await get_dates_formatted(user['id'])
-            reply_text += f"\n\n<b>Важные даты:</b>\n{d}"
+            dates = await get_dates_raw(user['id'])
+            await message.answer("<b>Важные даты:</b>", reply_markup=get_items_keyboard(dates, "date"))
+            return
     await message.answer(reply_text or "Я всё запомнил!")
