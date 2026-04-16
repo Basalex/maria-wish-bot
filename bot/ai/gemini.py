@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import asyncio
 from datetime import datetime
 from google import genai
 
@@ -48,14 +49,11 @@ Respond ONLY with valid JSON using this exact schema:
 }}
 
 Action rules:
-• "save_gift" — user says he gave a gift (e.g. "I gave her flowers today"). 
-    If it's a surprise or no special occasion mentioned, set is_without_reason=true.
-    If it matches a wish ID from SAVED WISHES, fill wish_id.
-• "show_stats" — user asks about gift statistics or when he last gave something without reason.
+• "save_gift" — user says he gave a gift. 
+• "show_stats" — user asks about gift statistics or last gift without reason.
 • "list_dates" — user wants to see important dates.
-• Other rules from before apply.
+• "save_wish", "save_date", "save_note" - as described before.
 
-If the user asks "when did I last give a gift without reason?", use "show_stats".
 Always be supportive and helpful."""
 
 def _build_wishes_text(wishes: list) -> str:
@@ -70,28 +68,26 @@ def _build_notes_text(notes: list) -> str:
     if not notes: return "(no notes saved yet)"
     return "\n".join([f"• [ID: {n['id']}] {n['content']} (category: {n.get('category', 'other')})" for n in notes])
 
-async def process_message(user_id: int, message_text: str, context: dict) -> dict:
+def _run_gemini(message_text: str, context: dict) -> dict:
     client = _get_client()
-    
-    prompt = _SYSTEM_PROMPT_TEMPLATE.format(
-        now=datetime.now().strftime("%Y-%m-%d %H:%M"),
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
+        now=now,
         wishes_text=_build_wishes_text(context.get('wishes', [])),
         dates_text=_build_dates_text(context.get('dates', [])),
         notes_text=_build_notes_text(context.get('notes', []))
     )
     
+    model_name = "gemini-2.5-flash"
     try:
-        model_name = 'gemini-1.5-flash-latest'
-        logger.info(f"Sending request to Gemini model: {model_name}")
+        logger.info(f"Sending request to Gemini model: {model_name} (Habbit scheme)")
         response = client.models.generate_content(
             model=model_name,
-            contents=message_text,
-            config={
-                'system_instruction': prompt,
-                'response_mime_type': 'application/json'
-            }
+            contents=[system_prompt, message_text],
         )
-        return json.loads(response.text)
+        
+        raw = response.text.strip().replace("```json", "").replace("```", "").strip()
+        return json.loads(raw)
     except Exception as e:
         logger.error(f"Gemini API error (model {model_name}): {e}")
         if "429" in str(e):
@@ -100,3 +96,8 @@ async def process_message(user_id: int, message_text: str, context: dict) -> dic
                 "actions": []
             }
         return {"reply": f"❌ Ошибка API ({model_name}): {str(e)}", "actions": []}
+
+async def process_message(user_id: int, message_text: str, context: dict) -> dict:
+    """Run Gemini in a thread pool like in habbit-bot."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _run_gemini, message_text, context)
